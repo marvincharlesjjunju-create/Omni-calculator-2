@@ -1,0 +1,28 @@
+{
+  "name": "omni-calculator-pro",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Omni Calculator Pro \u2014 scientific, converter, finance, graphing and voice calculator for Android and web.",
+  "scripts": {
+    "build:bridge": "esbuild src/native-bridge.js --bundle --format=iife --platform=browser --target=es2020 --outfile=www/native-bridge.js",
+    "build": "npm run build:bridge",
+    "android:add": "npx cap add android",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:apk": "npm run build && npx @capacitor/assets generate --android && npx cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "7.0.1",
+    "@capacitor/android": "7.6.10",
+    "@capacitor/core": "7.6.10",
+    "@capacitor/filesystem": "7.0.1",
+    "@capacitor/share": "7.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "4.0.0",
+    "@capacitor/cli": "7.6.10",
+    "esbuild": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

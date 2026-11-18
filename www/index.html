@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-512.png">
+<title>Omni Calculator Pro</title>
+<style>
+  :root {
+    --bg: #000; --text: #fff; --btn-bg: #333; --btn-func: #a5a5a5; --btn-func-text: #000;
+    --accent: #ff9500; --accent-text: #fff; --glass-bg: rgba(40, 40, 40, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.1); --sci-bg: rgba(255, 255, 255, 0.12);
+    --sci-border: rgba(255, 255, 255, 0.08); --drawer-bg: rgba(20, 20, 20, 0.98);
+    --danger: #ff3b30; --success: #34c759;
+  }
+  [data-theme="light"] {
+    --bg: #f2f2f7; --text: #000; --btn-bg: #fff; --btn-func: #d4d4d2; --btn-func-text: #000;
+    --glass-bg: rgba(255, 255, 255, 0.85); --glass-border: rgba(0, 0, 0, 0.1);
+    --sci-bg: rgba(0, 0, 0, 0.05); --sci-border: rgba(0, 0, 0, 0.05); --drawer-bg: rgba(242, 242, 247, 0.98);
+  }
+  [data-theme="blue"] { --accent: #007aff; }
+  [data-theme="emerald"] { --accent: #34c759; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  body { display: flex; justify-content: center; align-items: center; transition: background 0.3s; }
+
+  .app-container { width: 100%; max-width: 500px; height: 100%; max-height: 950px; background: var(--bg); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s; }
+
+  /* Display */
+  .display-area { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px 16px 10px; min-height: 120px; position: relative; }
+  .top-controls { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+  .left-controls, .right-controls { display: flex; gap: 8px; }
+  
+  .pill-btn { color: var(--accent); font-size: 0.8rem; background: rgba(255,149,0,0.15); padding: 6px 12px; border-radius: 20px; cursor: pointer; border: none; font-family: inherit; display: flex; align-items: center; gap: 4px; transition: background 0.2s; }
+  .pill-btn:active { opacity: 0.7; }
+  .pill-btn.active { background: var(--accent); color: var(--accent-text); }
+  .pill-btn.listening { background: var(--danger); color: white; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,59,48,0.7); } 70% { box-shadow: 0 0 0 10px rgba(255,59,48,0); } 100% { box-shadow: 0 0 0 0 rgba(255,59,48,0); } }
+
+  .mem-badge { background: var(--accent); color: var(--accent-text); font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-left: 4px; display: none; }
+  .mem-badge.show { display: inline-block; }
+
+  .expression-line { color: var(--btn-func); font-size: 1.1rem; font-weight: 300; text-align: right; min-height: 1.4rem; word-break: break-all; margin-bottom: 4px; margin-top: 40px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .preview-line { color: var(--btn-func); font-size: 0.9rem; text-align: right; opacity: 0.6; min-height: 1.2rem; }
+  .result-line { color: var(--text); font-size: clamp(2rem, 10vw, 4.8rem); font-weight: 300; line-height: 1; word-break: break-all; text-align: right; transition: font-size 0.1s; }
+  .result-line.small { font-size: clamp(1.5rem, 7vw, 3rem); }
+
+  .steps-btn { display: none; background: var(--sci-bg); border: 1px solid var(--sci-border); color: var(--accent); padding: 6px 12px; border-radius: 12px; font-size: 0.8rem; margin-top: 8px; align-self: flex-end; cursor: pointer; }
+  .steps-btn.show { display: block; }
+
+  /* Keypads */
+  .basic-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 8px 16px 20px; padding-bottom: max(16px, env(safe-area-inset-bottom)); flex-shrink: 0; z-index: 5; }
+  button { border: none; border-radius: 50%; aspect-ratio: 1; font-size: clamp(1.3rem, 6vw, 1.8rem); font-weight: 500; color: var(--text); background: var(--btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; transition: background 0.1s, transform 0.05s; }
+  button:active { transform: scale(0.92); filter: brightness(1.2); }
+  button.func { background: var(--btn-func); color: var(--btn-func-text); }
+  button.operator { background: var(--accent); color: var(--accent-text); }
+
+  .drag-mode .basic-grid button { border: 2px dashed var(--accent); cursor: grab; }
+  .drag-mode .basic-grid button.dragging { opacity: 0.5; transform: scale(0.9); }
+
+  /* Scientific Overlay */
+  .sci-backdrop { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .sci-backdrop.open { opacity: 1; pointer-events: auto; }
+  .sci-wrapper { position: absolute; top: 50%; left: 50%; width: 95%; max-width: 420px; background: var(--glass-bg); backdrop-filter: blur(25px); z-index: 60; border-radius: 28px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; opacity: 0; visibility: hidden; transform: translate(-50%, -50%) scale(0.85); transition: all 0.3s; }
+  .sci-wrapper.open { opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
+  
+  .drawer-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--glass-border); }
+  .drawer-header h3 { font-size: 1rem; font-weight: 500; color: var(--btn-func); }
+  .close-btn { background: var(--sci-bg); border: none; color: var(--text); width: 32px; height: 32px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  
+  .scientific-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 16px; max-height: 65vh; overflow-y: auto; }
+  button.sci-btn { background: var(--sci-bg); border: 1px solid var(--sci-border); font-size: 0.85rem; color: var(--text); }
+  button.mem-btn { background: rgba(255, 149, 0, 0.15); font-size: 0.8rem; color: var(--accent); }
+
+  /* Drawers */
+  .full-drawer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--drawer-bg); backdrop-filter: blur(15px); z-index: 100; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s; }
+  .full-drawer.open { transform: translateY(0); }
+  
+  /* Tools Menu */
+  .tools-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 20px; overflow-y: auto; }
+  .tool-card { background: var(--sci-bg); border: 1px solid var(--sci-border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; text-align: center; }
+  .tool-card:active { background: var(--sci-border); }
+  .tool-card .icon { font-size: 2rem; }
+  .tool-card .label { font-size: 0.9rem; font-weight: 500; }
+
+  /* Cloud Sync Banner */
+  .cloud-banner { display: flex; align-items: center; justify-content: space-between; background: rgba(0, 122, 255, 0.15); border: 1px solid rgba(0, 122, 255, 0.3); border-radius: 12px; padding: 10px 16px; margin: 10px 20px 0 20px; font-size: 0.85rem; color: var(--text); }
+  .cloud-banner button.sign-in-link { background: var(--accent); color: var(--accent-text); border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.8rem; margin-left: 10px; }
+  .cloud-banner button.dismiss { background: transparent; border: none; color: var(--btn-func); font-size: 1.2rem; cursor: pointer; padding: 0 5px; margin-left: 8px; }
+  .cloud-banner.hidden { display: none; }
+
+  /* History */
+  .history-list { flex: 1; overflow-y: auto; padding: 10px 20px; }
+  .history-group { margin-bottom: 20px; }
+  .history-group-title { font-size: 0.8rem; color: var(--btn-func); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; margin-left: 4px; }
+  .history-item { padding: 12px 0; border-bottom: 1px solid var(--sci-border); display: flex; justify-content: space-between; align-items: center; }
+  .history-text { flex: 1; cursor: pointer; }
+  .hist-expr { color: var(--btn-func); font-size: 0.9rem; text-align: right; }
+  .hist-result { color: var(--text); font-size: 1.2rem; text-align: right; font-weight: 500; }
+  
+  /* Context Menu */
+  .context-menu { position: fixed; background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 12px; padding: 6px; display: none; flex-direction: column; gap: 2px; z-index: 300; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 150px; }
+  .context-menu.open { display: flex; }
+  .context-menu button { padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; background: transparent; justify-content: flex-start; color: var(--text); aspect-ratio: auto; }
+  .context-menu button:active { background: var(--sci-bg); }
+  .context-menu button.delete { color: var(--danger); }
+
+  .clear-btn { margin: 10px auto 24px; padding: 10px 24px; background: var(--danger); border: none; color: #fff; border-radius: 999px; font-size: 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: max-content; transition: background 0.2s; }
+  
+  .export-btn { margin: 10px auto 0; padding: 10px 24px; background: var(--accent); border: none; color: var(--accent-text); border-radius: 999px; font-size: 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: max-content; transition: background 0.2s; }
+
+  /* Converter */
+  .conv-content { padding: 20px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto; }
+  .conv-category { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+  .conv-category button { background: var(--sci-bg); border-radius: 20px; padding: 8px 16px; font-size: 0.9rem; color: var(--text); aspect-ratio: auto; }
+  .conv-category button.active { background: var(--accent); color: var(--accent-text); }
+  .conv-row { display: flex; gap: 10px; background: var(--bg); border-radius: 12px; padding: 10px; border: 1px solid var(--sci-border); }
+  .conv-row input { flex: 1; background: transparent; border: none; color: var(--text); font-size: 1.5rem; outline: none; font-family: inherit; min-width: 0; }
+  .conv-row select { background: var(--sci-bg); border: none; color: var(--text); font-size: 1rem; padding: 0 10px; border-radius: 8px; outline: none; font-family: inherit; }
+  .conv-swap { align-self: center; background: var(--sci-bg); border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--text); cursor: pointer; margin: -8px 0; z-index: 2; }
+
+  /* Math Notes */
+  .notes-content { padding: 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; font-family: 'Courier New', Courier, monospace; }
+  .note-line { display: flex; justify-content: space-between; border-bottom: 1px solid var(--sci-border); padding-bottom: 4px; font-size: 1.2rem; align-items: center; }
+  .note-input { background: transparent; border: none; color: var(--text); font-size: 1.2rem; outline: none; width: 65%; font-family: inherit; }
+  .note-result { color: var(--accent); font-weight: bold; text-align: right; width: 30%; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Stats & Finance Forms */
+  .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .form-group label { font-size: 0.8rem; color: var(--btn-func); }
+  .form-group input { background: var(--bg); border: 1px solid var(--sci-border); padding: 12px; border-radius: 8px; color: var(--text); font-size: 1rem; outline: none; }
+  .form-result { background: var(--sci-bg); padding: 16px; border-radius: 12px; text-align: center; font-size: 1.5rem; color: var(--accent); font-weight: bold; margin-top: 10px; }
+  .stat-output { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+  .stat-box { background: var(--sci-bg); padding: 10px; border-radius: 8px; text-align: center; }
+  .stat-box .lbl { font-size: 0.7rem; color: var(--btn-func); }
+  .stat-box .val { font-size: 1.1rem; font-weight: bold; }
+
+  /* Graphing */
+  .graph-container { flex: 1; position: relative; display: flex; flex-direction: column; }
+  .graph-canvas { flex: 1; width: 100%; background: var(--bg); touch-action: none; }
+  .graph-inputs { display: flex; gap: 8px; padding: 10px; background: var(--drawer-bg); border-top: 1px solid var(--sci-border); }
+  .graph-inputs input { flex: 1; background: var(--sci-bg); border: none; padding: 10px; border-radius: 8px; color: var(--text); font-size: 1rem; outline: none; }
+
+  /* Color Picker */
+  .color-picker-container { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; justify-content: center; }
+  .color-swatch { width: 32px; height: 32px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: transform 0.1s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+  .color-swatch:active { transform: scale(0.9); }
+  .color-swatch.active { border-color: var(--text); }
+  .custom-color-swatch { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+  .custom-color-swatch input[type="color"] { position: absolute; top: -10px; left: -10px; width: 60px; height: 60px; opacity: 0; cursor: pointer; }
+  .custom-color-icon { color: #fff; font-size: 14px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8); pointer-events: none; }
+
+  .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--glass-bg); color: var(--text); padding: 10px 20px; border-radius: 20px; font-size: 0.9rem; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 400; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (orientation: landscape) and (max-height: 620px) {
+    .app-container {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: minmax(88px, 25vh) minmax(0, 1fr);
+      gap: 3px;
+      width: 100vw; max-width: 100vw; height: 100dvh; max-height: none;
+      border-radius: 0; box-shadow: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .display-area { grid-column: 1 / -1; grid-row: 1; min-height: 0; height: auto; padding: 4px 14px 2px; justify-content: flex-end; }
+    .top-controls { top: 4px; left: 10px; right: 10px; }
+    .left-controls, .right-controls { gap: 5px; }
+    .pill-btn { font-size: .72rem; padding: 4px 9px; }
+    .expression-line { margin-top: 3px; margin-bottom: 2px; min-height: 1rem; font-size: .8rem; }
+    .preview-line { min-height: .9rem; font-size: .72rem; }
+    .result-line { font-size: clamp(1.35rem, 5vw, 2.5rem); line-height: .95; }
+    .result-line.small { font-size: clamp(1.1rem, 4vw, 2rem); }
+    .steps-btn { padding: 3px 9px; margin-top: 2px; font-size: .68rem; }
+    .basic-grid {
+      grid-column: 1; grid-row: 2; width: 100%; height: 100%; min-height: 0;
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr));
+      gap: clamp(2px, .55vw, 7px); padding: 3px 5px max(3px, env(safe-area-inset-bottom)); flex: none;
+    }
+    .sci-wrapper {
+      position: relative; grid-column: 2; grid-row: 2; inset: auto;
+      width: 100%; max-width: none; height: 100%; max-height: none; min-height: 0;
+      display: flex; flex-direction: column; opacity: 1; visibility: visible; pointer-events: auto;
+      transform: none !important; border-radius: 16px; border: 1px solid var(--sci-border);
+      background: var(--glass-bg); box-shadow: none; overflow: hidden;
+    }
+    .sci-wrapper .drawer-header, .sci-backdrop, #sciToggleBtn, #closeSciBtn { display: none !important; }
+    .scientific-grid {
+      display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr));
+      gap: clamp(2px, .5vw, 6px); padding: 4px; max-height: none; min-height: 0; flex: 1; overflow: hidden;
+    }
+    .basic-grid button, .scientific-grid button {
+      width: 100%; height: 100%; min-width: 0; min-height: 0; aspect-ratio: auto; margin: 0;
+      border-radius: clamp(7px, 1.3vw, 14px); font-size: clamp(.72rem, 2.2vw, 1.12rem); font-weight: 550;
+    }
+    .scientific-grid button.sci-btn, .scientific-grid button.mem-btn { font-size: clamp(.62rem, 1.7vw, .92rem); }
+    .settings-menu { max-height: 75dvh; overflow-y: auto; }
+    .toast { bottom: 8px; }
+  }
+
+  @media (max-height: 700px) and (orientation: portrait) {
+    .display-area { min-height: 104px; padding-top: 12px; }
+    .basic-grid { gap: 7px; padding-top: 6px; padding-bottom: max(9px, env(safe-area-inset-bottom)); }
+  }
+  @media (max-width: 360px) and (orientation: portrait) {
+    .basic-grid { gap: 5px; padding-left: 10px; padding-right: 10px; }
+    .left-controls, .right-controls { gap: 4px; }
+    .pill-btn { padding: 5px 8px; }
+    .result-line { font-size: clamp(1.8rem, 9vw, 3.2rem); }
+  }
+  @media (min-width: 520px) and (orientation: portrait) { .app-container { height: 92vh; border-radius: 40px; box-shadow: 0 0 50px rgba(255,255,255,0.08); } }
+
+  /* Quality and accessibility refinements */
+  html { height: 100%; height: 100dvh; }
+  body { min-height: 100%; min-height: 100dvh; overscroll-behavior: none; }
+  .app-container { min-height: 0; }
+  button, .tool-card, select { -webkit-user-select: none; user-select: none; }
+  input, textarea { -webkit-user-select: text; user-select: text; }
+  .history-text { aspect-ratio: auto; width: 100%; display: block; padding: 12px 0; border-radius: 0; text-align: right; background: transparent; color: var(--text); }
+  .history-text:active { transform: none; filter: none; background: var(--sci-bg); }
+  .empty-state { text-align: center; padding: 44px 16px; color: var(--btn-func); }
+  .full-drawer { height: 100%; height: 100dvh; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .drawer-header { flex-shrink: 0; }
+  .conv-content, .history-list, .notes-content, #financeContent { min-height: 0; }
+  .conv-row input, .conv-row select, .form-group input, .graph-inputs input, .note-input { user-select: text; -webkit-user-select: text; }
+  .refreshRatesBtn:disabled, #refreshRatesBtn:disabled { opacity: .55; }
+  #basicGrid button.reorderable { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+  #basicGrid button.dragging { opacity: .45; transform: scale(.92); outline: 2px solid var(--accent); z-index: 10; }
+  .drag-mode #basicGrid { outline: 1px dashed var(--accent); outline-offset: -2px; border-radius: 18px; }
+  .settings-menu { max-width: min(92vw, 300px); max-height: min(78dvh, 620px); overflow: auto; }
+  .context-menu button { min-height: 40px; }
+  .tool-card { min-height: 112px; }
+  .sci-wrapper { max-width: calc(100vw - 20px); }
+  .scientific-grid button { min-width: 0; }
+  .toast { max-width: calc(100vw - 32px); text-align: center; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+</style>
+</head>
+<body>
+  <div class="app-container" id="app" data-theme="dark">
+    
+    <!-- Main Display -->
+    <div class="display-area" id="displayArea">
+      <div class="top-controls">
+        <div class="left-controls">
+          <button class="pill-btn" id="voiceBtn" aria-label="Voice Input">🎤</button>
+          <button class="pill-btn" id="historyBtn">📋</button>
+          <button class="pill-btn" id="convertBtn">📏</button>
+          <button class="pill-btn" id="toolsBtn">🧰</button>
+        </div>
+        <div class="right-controls">
+          <span class="mem-badge" id="memBadge">M</span>
+          <button class="pill-btn" id="sciToggleBtn">🔬</button>
+          <button class="pill-btn" id="settingsBtn">⚙️</button>
+        </div>
+      </div>
+
+      <div class="settings-menu context-menu" id="settingsMenu" style="top:60px; right:16px;">
+        <button data-theme="dark">Dark Theme</button>
+        <button data-theme="light">Light Theme</button>
+        <button data-theme="blue">Ocean Blue</button>
+        <button data-theme="emerald">Emerald Green</button>
+        <div style="height:1px; background:var(--sci-border); margin:4px 0;"></div>
+        
+        <div class="color-picker-container">
+          <div class="color-swatch" data-color="#ff9500" style="background:#ff9500"></div>
+          <div class="color-swatch" data-color="#007aff" style="background:#007aff"></div>
+          <div class="color-swatch" data-color="#34c759" style="background:#34c759"></div>
+          <div class="color-swatch" data-color="#ff3b30" style="background:#ff3b30"></div>
+          <div class="color-swatch" data-color="#af52de" style="background:#af52de"></div>
+          <div class="color-swatch" data-color="#ffcc00" style="background:#ffcc00"></div>
+          <div class="color-swatch custom-color-swatch">
+            <span class="custom-color-icon">+</span>
+            <input type="color" id="customColorInput" value="#ff9500">
+          </div>
+        </div>
+        <div style="height:1px; background:var(--sci-border); margin:4px 0;"></div>
+        
+        <button id="cloudSyncBtn" style="color: #007aff;">☁️ Cloud Sync (Optional)</button>
+        <button id="hapticToggleBtn">📳 Haptics: ON</button>
+        <button id="dragModeBtn">Rearrange Keypad</button>
+        <button id="resetKeypadBtn">Reset Keypad Layout</button>
+      </div>
+
+      <div class="expression-line" id="expression"></div>
+      <div class="preview-line" id="preview"></div>
+      <div class="result-line" id="result" aria-live="polite">0</div>
+      <button class="steps-btn" id="stepsBtn">Show Steps</button>
+    </div>
+
+    <!-- Basic Keypad -->
+    <div class="basic-grid" id="basicGrid"></div>
+
+    <!-- Scientific Overlay -->
+    <div class="sci-backdrop" id="sciBackdrop"></div>
+    <div class="sci-wrapper" id="sciWrapper">
+      <div class="drawer-header">
+        <h3>Scientific Mode</h3>
+        <button class="close-btn" id="closeSciBtn">×</button>
+      </div>
+      <div class="scientific-grid">
+        <button class="sci-btn" data-sci="2nd" id="btn2nd">2nd</button>
+        <button class="sci-btn" data-sci="sin" data-alt="sin⁻¹">sin</button>
+        <button class="sci-btn" data-sci="cos" data-alt="cos⁻¹">cos</button>
+        <button class="sci-btn" data-sci="tan" data-alt="tan⁻¹">tan</button>
+        <button class="sci-btn" data-sci="deg" id="degToggle">Deg</button>
+        
+        <button class="sci-btn" data-sci="sinh">sinh</button>
+        <button class="sci-btn" data-sci="cosh">cosh</button>
+        <button class="sci-btn" data-sci="tanh">tanh</button>
+        <button class="sci-btn" data-sci="log" data-alt="log₂">log</button>
+        <button class="sci-btn" data-sci="ln" data-alt="eˣ">ln</button>
+        
+        <button class="sci-btn" data-sci="sqrt" data-alt="∛x">√</button>
+        <button class="sci-btn" data-sci="sqr" data-alt="x³">x²</button>
+        <button class="sci-btn" data-sci="pow">xʸ</button>
+        <button class="sci-btn" data-sci="root">ʸ√x</button>
+        <button class="sci-btn" data-sci="fact">x!</button>
+        
+        <button class="sci-btn" data-sci="(">(</button>
+        <button class="sci-btn" data-sci=")">)</button>
+        <button class="sci-btn" data-sci="pi">π</button>
+        <button class="sci-btn" data-sci="e">e</button>
+        <button class="sci-btn" data-sci="rand">Rand</button>
+
+        <button class="mem-btn" data-mem="mc">MC</button>
+        <button class="mem-btn" data-mem="mr">MR</button>
+        <button class="mem-btn" data-mem="mplus">M+</button>
+        <button class="mem-btn" data-mem="mminus">M−</button>
+        <button class="sci-btn" data-sci="nCr">nCr</button>
+        <button class="sci-btn" data-sci="nPr">nPr</button>
+      </div>
+    </div>
+
+    <!-- History Drawer -->
+    <div class="full-drawer" id="historyDrawer">
+      <div class="drawer-header">
+        <h3>History</h3>
+        <button class="close-btn" id="closeHistory">×</button>
+      </div>
+      
+      <div class="cloud-banner" id="cloudBanner">
+        <span>Your history is saved on this phone. Export a CSV backup below.</span>
+        <div style="display:flex; align-items:center;">
+          <button class="sign-in-link" id="bannerSignInBtn" style="display:none;" aria-hidden="true" tabindex="-1">Sign In</button>
+          <button class="dismiss" id="dismissBanner">×</button>
+        </div>
+      </div>
+
+      <div class="history-list" id="historyList"></div>
+      
+      <!-- Export CSV Button -->
+      <button class="export-btn" id="exportCsvBtn" style="margin-bottom: 10px;">📥 Export CSV</button>
+      <button class="clear-btn" id="clearHistoryBtn">Clear All</button>
+    </div>
+
+    <!-- Tools Menu Drawer -->
+    <div class="full-drawer" id="toolsDrawer">
+      <div class="drawer-header">
+        <h3>Tools</h3>
+        <button class="close-btn" id="closeTools">×</button>
+      </div>
+      <div class="tools-grid">
+        <div class="tool-card" id="openGraphBtn"><span class="icon">📈</span><span class="label">Graphing</span></div>
+        <div class="tool-card" id="openNotesBtn"><span class="icon">📝</span><span class="label">Math Notes</span></div>
+        <div class="tool-card" id="openFinanceBtn"><span class="icon">💰</span><span class="label">Finance</span></div>
+        <div class="tool-card" id="openStatsBtn"><span class="icon">📊</span><span class="label">Statistics</span></div>
+      </div>
+    </div>
+
+    <!-- Converter Drawer -->
+    <div class="full-drawer" id="converterDrawer">
+      <div class="drawer-header">
+        <h3>Converter</h3>
+        <button class="close-btn" id="closeConverter">×</button>
+      </div>
+      <div class="conv-content">
+        <div class="conv-category" id="convCategories"></div>
+        <div class="conv-row">
+          <input type="text" id="convFrom" placeholder="0" inputmode="text">
+          <select id="convFromUnit"></select>
+        </div>
+        <button class="conv-swap" id="convSwap">⇅</button>
+        <div class="conv-row">
+          <input type="text" id="convTo" placeholder="0" readonly>
+          <select id="convToUnit"></select>
+        </div>
+        <div class="rate-label" id="rateLabel" style="text-align:center; font-size:0.8rem; color:var(--btn-func);" aria-live="polite"></div>
+        <button class="pill-btn" id="refreshRatesBtn" type="button" style="align-self:center;">↻ Refresh exchange rates</button>
+      </div>
+    </div>
+
+    <!-- Math Notes Drawer -->
+    <div class="full-drawer" id="notesDrawer">
+      <div class="drawer-header">
+        <h3>Math Notes</h3>
+        <button class="close-btn" id="closeNotes">×</button>
+      </div>
+      <div style="display:flex; gap:10px; padding:10px 20px 0;">
+        <button class="pill-btn" id="toggleStacked" style="flex:1; justify-content:center;">Stacked Math</button>
+        <button class="pill-btn" id="toggleDraw" style="flex:1; justify-content:center;">Draw Mode</button>
+      </div>
+      <div class="notes-content" id="notesContent"></div>
+      <canvas id="drawCanvas" style="display:none; flex:1; background:var(--bg); touch-action:none; width:100%;"></canvas>
+      <button class="pill-btn" id="clearDrawingBtn" style="display:none; align-self:center; margin:10px;">Clear drawing</button>
+      <button class="clear-btn" id="addNoteLineBtn" style="background:var(--accent); margin-bottom:20px;">+ Add Line</button>
+    </div>
+
+    <!-- Graphing Drawer -->
+    <div class="full-drawer" id="graphDrawer">
+      <div class="drawer-header">
+        <h3>Graphing</h3>
+        <button class="close-btn" id="closeGraph">×</button>
+      </div>
+      <div class="graph-container">
+        <canvas id="graphCanvas" class="graph-canvas"></canvas>
+        <div class="graph-inputs">
+          <input type="text" id="graphInput" placeholder="y = x^2" value="y = x^2">
+          <button class="pill-btn" id="plotBtn">Plot</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Finance Drawer -->
+    <div class="full-drawer" id="financeDrawer">
+      <div class="drawer-header">
+        <h3>Finance</h3>
+        <button class="close-btn" id="closeFinance">×</button>
+      </div>
+      <div class="conv-category" style="padding:0 20px;">
+        <button data-fin="tip" class="active">Tip</button>
+        <button data-fin="loan">Loan</button>
+        <button data-fin="compound">Interest</button>
+      </div>
+      <div style="padding:20px;" id="financeContent"></div>
+    </div>
+
+    <!-- Statistics Drawer -->
+    <div class="full-drawer" id="statsDrawer">
+      <div class="drawer-header">
+        <h3>Statistics</h3>
+        <button class="close-btn" id="closeStats">×</button>
+      </div>
+      <div style="padding:20px;">
+        <div class="form-group">
+          <label>Data (comma separated)</label>
+          <input type="text" id="statsData" placeholder="e.g. 10, 15, 12, 18, 20">
+        </div>
+        <div class="stat-output" id="statsOutput"></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="context-menu" id="historyContextMenu">
+      <button id="ctxCopyExpr">Copy Expression</button>
+      <button id="ctxCopyRes">Copy Result</button>
+      <button id="ctxDelete" class="delete">Delete</button>
+    </div>
+  </div>
+
+<script src="native-bridge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
